@@ -40,7 +40,7 @@ app.get('/checkout/mock-payment', (req, res) => {
 });
 
 // ── Stripe API routes (auth required) ────────────────────────────────────────
-// app.use('/v1', validateApiKey);
+app.use('/v1', validateApiKey);
 app.use('/v1/products', productRoutes);
 app.use('/v1/prices', priceRoutes);
 app.use('/v1/checkout/sessions', checkoutRoutes);
