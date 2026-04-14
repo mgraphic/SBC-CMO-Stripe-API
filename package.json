@@ -1,6 +1,6 @@
 {
     "name": "sbc-cmo-stripe-mock-api",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "A local mock Stripe API server supporting Products, Prices, and Checkout Sessions",
     "main": "dist/index.js",
     "scripts": {

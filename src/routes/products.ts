@@ -33,6 +33,71 @@ router.get('/', (req: Request, res: Response) => {
     res.json(paginate(expanded, req.query as ListQueryParams, '/v1/products'));
 });
 
+// ── Search products ───────────────────────────────────────────────────────────
+// Supports a subset of Stripe's search query syntax:
+//   field:'value' AND field:'value'
+//   Supported fields: active, name, metadata['key']
+router.get('/search', (req: Request, res: Response) => {
+    const query = (req.query.query as string) ?? '';
+    const limit = Math.min(
+        parseInt((req.query.limit as string) ?? '10', 10),
+        100,
+    );
+
+    let products = dataStore.getProducts();
+
+    // Parse each AND-separated clause
+    const clauses = query
+        .split(/\s+AND\s+/i)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    for (const clause of clauses) {
+        // metadata['key']:'value'
+        const metaMatch = clause.match(
+            /^metadata\[['"](.+?)['"]\]\s*:\s*['"](.+?)['"]$/,
+        );
+        if (metaMatch) {
+            const [, metaKey, metaVal] = metaMatch;
+            products = products.filter(
+                (p) =>
+                    p.metadata &&
+                    (p.metadata as Record<string, string>)[metaKey] === metaVal,
+            );
+            continue;
+        }
+
+        // field:'value'
+        const fieldMatch = clause.match(/^(\w+)\s*:\s*['"](.+?)['"]$/);
+        if (fieldMatch) {
+            const [, field, value] = fieldMatch;
+            if (field === 'active') {
+                const active = value === 'true';
+                products = products.filter((p) => p.active === active);
+            } else if (field === 'name') {
+                products = products.filter((p) => p.name === value);
+            }
+        }
+    }
+
+    const expand = parseExpand({
+        ...(req.query as Record<string, unknown>),
+        ...req.body,
+    });
+
+    const paged = products.slice(0, limit);
+    const hasMore = products.length > limit;
+    const expanded = paged.map((p) => expandProduct(p, expand));
+
+    res.json({
+        object: 'search_result',
+        url: '/v1/products/search',
+        has_more: hasMore,
+        data: expanded,
+        next_page: null,
+        total_count: products.length,
+    });
+});
+
 // ── Retrieve product ──────────────────────────────────────────────────────────
 router.get('/:id', (req: Request, res: Response) => {
     const product = dataStore.getProduct(req.params.id);
