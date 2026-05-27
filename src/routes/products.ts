@@ -9,6 +9,39 @@ type StripeProduct = Stripe.Product;
 
 const router = Router();
 
+// ── Search query parser ───────────────────────────────────────────────────────
+function applySearchQuery(
+    products: StripeProduct[],
+    query: string,
+): StripeProduct[] {
+    let result = products;
+
+    // metadata['key']:'value'
+    const metaMatches = [...query.matchAll(/metadata\['([^']+)'\]:'([^']*)'/g)];
+    for (const [, key, value] of metaMatches) {
+        result = result.filter((p) => p.metadata[key] === value);
+    }
+
+    // active:'true' | active:'false'
+    const activeMatch = query.match(/active:'(true|false)'/);
+    if (activeMatch) {
+        result = result.filter((p) => p.active === (activeMatch[1] === 'true'));
+    }
+
+    // name:'value' (exact) or name~'value' (substring)
+    const nameExact = query.match(/name:'([^']+)'/);
+    if (nameExact) {
+        result = result.filter((p) => p.name === nameExact[1]);
+    }
+    const nameSubstr = query.match(/name~'([^']+)'/);
+    if (nameSubstr) {
+        const lower = nameSubstr[1].toLowerCase();
+        result = result.filter((p) => p.name.toLowerCase().includes(lower));
+    }
+
+    return result;
+}
+
 // ── List products ─────────────────────────────────────────────────────────────
 router.get('/', (req: Request, res: Response) => {
     let products = dataStore.getProducts();
@@ -25,12 +58,41 @@ router.get('/', (req: Request, res: Response) => {
         products = products.filter((p) => idList.includes(p.id));
     }
 
+    // Support ?metadata[key]=value (Stripe SDK encodes metadata objects this way)
+    const metadata = req.query.metadata;
+    if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+        const metaFilter = metadata as Record<string, string>;
+        products = products.filter((p) =>
+            Object.entries(metaFilter).every(([k, v]) => p.metadata[k] === v),
+        );
+    }
+
     const expand = parseExpand({
         ...(req.query as Record<string, unknown>),
         ...req.body,
     });
     const expanded = products.map((p) => expandProduct(p, expand));
     res.json(paginate(expanded, req.query as ListQueryParams, '/v1/products'));
+});
+
+// ── Search products ───────────────────────────────────────────────────────────
+// Must be defined before /:id to prevent 'search' matching the param route.
+router.get('/search', (req: Request, res: Response) => {
+    const query = req.query.query as string | undefined;
+    let products = dataStore.getProducts();
+
+    if (query) {
+        products = applySearchQuery(products, query);
+    }
+
+    res.json({
+        object: 'search_result',
+        url: '/v1/products/search',
+        has_more: false,
+        data: products,
+        next_page: null,
+        total_count: products.length,
+    });
 });
 
 // ── Retrieve product ──────────────────────────────────────────────────────────
