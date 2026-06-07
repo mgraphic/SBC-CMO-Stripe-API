@@ -6,3 +6,4 @@ data/
 *.log
 *.md
 .DS_Store
+notes.txt
