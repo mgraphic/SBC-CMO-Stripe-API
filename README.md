@@ -140,6 +140,184 @@ Configure valid keys via the `STRIPE_API_KEYS` environment variable.
 
 ---
 
+## Checkout Flow
+
+This section explains how the checkout process works end-to-end and how to integrate it into your application.
+
+### Overview
+
+```
+Your App                         Mock Stripe API                  Browser
+   │                                    │                              │
+   │── POST /v1/checkout/sessions ─────▶│                              │
+   │        (line_items, mode,          │  Creates session in memory   │
+   │         success_url, cancel_url)   │  Generates session URL       │
+   │                                    │                              │
+   │◀── { id, url, status: "open" } ────│                              │
+   │                                    │                              │
+   │── Redirect user to session.url ──────────────────────────────────▶│
+   │                                    │                              │
+   │                          GET /checkout/mock-payment?session_id=…  │
+   │                                    │◀─────────────────────────────│
+   │                                    │                              │
+   │                                    │── Renders mock payment UI ──▶│
+   │                                    │                              │
+   │                          User clicks "Pay" or "Cancel"            │
+   │◀── Redirect to success_url / cancel_url ──────────────────────────│
+   │                                    │                              │
+   │── GET /v1/checkout/sessions/:id ──▶│                              │
+   │                                    │                              │
+   │◀───────── GET /webhook ────────────│                              │
+   │                                    │                              │
+   │◀── { status, payment_status, … } ──│                              │
+```
+
+### Step 1 — Create a Checkout Session
+
+Send a `POST` to `/v1/checkout/sessions` with your line items and redirect URLs.
+
+**Required fields:** `mode`, `success_url`
+
+**Supported modes:** `payment`, `subscription`, `setup`
+
+```bash
+curl -X POST http://localhost:4242/v1/checkout/sessions \
+  -H "Authorization: Bearer sk_test_mock" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode": "payment",
+    "success_url": "https://your-app.com/success?session_id={CHECKOUT_SESSION_ID}",
+    "cancel_url": "https://your-app.com/cancel",
+    "line_items": [
+      {
+        "price": "price_xxxx",
+        "quantity": 1
+      }
+    ]
+  }'
+```
+
+**Using inline `price_data`** (no pre-existing price required):
+
+```bash
+curl -X POST http://localhost:4242/v1/checkout/sessions \
+  -H "Authorization: Bearer sk_test_mock" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode": "payment",
+    "success_url": "https://your-app.com/success?session_id={CHECKOUT_SESSION_ID}",
+    "cancel_url": "https://your-app.com/cancel",
+    "line_items": [
+      {
+        "quantity": 1,
+        "price_data": {
+          "currency": "usd",
+          "unit_amount": 4999,
+          "product": "prod_xxxx"
+        }
+      }
+    ]
+  }'
+```
+
+The response includes a `url` field — redirect your customer there to complete payment.
+
+```json
+{
+  "id": "cs_mock_...",
+  "object": "checkout.session",
+  "status": "open",
+  "payment_status": "unpaid",
+  "url": "http://localhost:4242/checkout/mock-payment?session_id=cs_mock_...",
+  "success_url": "https://your-app.com/success?session_id={CHECKOUT_SESSION_ID}",
+  "cancel_url": "https://your-app.com/cancel",
+  "amount_subtotal": 4999,
+  "amount_total": 4999,
+  "currency": "usd",
+  ...
+}
+```
+
+### Step 2 — Redirect to the Mock Payment Page
+
+The `url` returned by Step 1 points to the built-in mock payment UI at:
+
+```
+http://localhost:4242/checkout/mock-payment?session_id=<SESSION_ID>
+```
+
+This page renders a summary of the session's line items, totals, and two buttons:
+
+- **Pay** — simulates a successful payment and redirects to `success_url`
+- **Cancel** — redirects to `cancel_url`
+
+The `{CHECKOUT_SESSION_ID}` placeholder in your `success_url` is replaced with the real session ID so your app can retrieve the session after redirect.
+
+### Step 3 — Confirm the Payment on Return
+
+After the customer is redirected back to your `success_url`, retrieve the session to confirm its status:
+
+```bash
+curl http://localhost:4242/v1/checkout/sessions/cs_mock_... \
+  -H "Authorization: Bearer sk_test_mock"
+```
+
+Check `payment_status` in the response:
+
+| `payment_status`      | Meaning                         |
+| --------------------- | ------------------------------- |
+| `unpaid`              | Session created, not yet paid   |
+| `paid`                | Payment completed successfully  |
+| `no_payment_required` | `setup` or zero-amount sessions |
+
+### Optional — Query Line Items
+
+```bash
+curl http://localhost:4242/v1/checkout/sessions/cs_mock_.../line_items \
+  -H "Authorization: Bearer sk_test_mock"
+```
+
+### Optional — Expire a Session
+
+Sessions expire automatically 30 minutes after creation (configurable via `expires_at`). To expire one immediately:
+
+```bash
+curl -X POST http://localhost:4242/v1/checkout/sessions/cs_mock_.../expire \
+  -H "Authorization: Bearer sk_test_mock"
+```
+
+### JavaScript / TypeScript Example
+
+```typescript
+import Stripe from 'stripe';
+
+const stripe = new Stripe('sk_test_mock', {
+    apiVersion: '2024-04-10',
+    // Point the SDK at the local mock server
+    host: 'localhost',
+    port: 4242,
+    protocol: 'http',
+});
+
+// Create a session
+const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    success_url:
+        'https://your-app.com/success?session_id={CHECKOUT_SESSION_ID}',
+    cancel_url: 'https://your-app.com/cancel',
+    line_items: [{ price: 'price_xxxx', quantity: 1 }],
+});
+
+// Redirect your user
+console.log('Redirect to:', session.url);
+
+// After redirect, confirm payment
+const confirmed = await stripe.checkout.sessions.retrieve(session.id);
+console.log('Payment status:', confirmed.payment_status);
+```
+
+---
+
 ## Environment Variables
 
 | Variable          | Default                 | Description                                    |
