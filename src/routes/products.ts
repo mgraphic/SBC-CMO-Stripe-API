@@ -85,13 +85,19 @@ router.get('/search', (req: Request, res: Response) => {
         products = applySearchQuery(products, query);
     }
 
+    const expand = parseExpand({
+        ...(req.query as Record<string, unknown>),
+        ...req.body,
+    });
+    const expanded = products.map((p) => expandProduct(p, expand));
+
     res.json({
         object: 'search_result',
         url: '/v1/products/search',
         has_more: false,
-        data: products,
+        data: expanded,
         next_page: null,
-        total_count: products.length,
+        total_count: expanded.length,
     });
 });
 
