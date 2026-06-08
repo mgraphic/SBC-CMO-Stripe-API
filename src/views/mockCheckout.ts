@@ -44,7 +44,6 @@ export function renderMockCheckout(
 ): string {
     const currency = session.currency ?? 'usd';
     const createdDate = new Date(session.created * 1000).toLocaleString();
-    const successUrl = session.success_url ?? '#';
     const cancelUrl =
         (session as { cancel_url?: string | null }).cancel_url ?? '#';
 

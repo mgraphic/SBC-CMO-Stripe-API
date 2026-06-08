@@ -12,6 +12,7 @@ import { notFound, errorHandler } from './middleware/errorHandler';
 import { dataStore } from './store/dataStore';
 import { renderMockCheckout, renderNotFound } from './views/mockCheckout';
 import { dispatchCheckoutWebhooks } from './utils/webhook';
+import { url } from 'inspector/promises';
 
 const app = express();
 const PORT = process.env.PORT ?? 4242;
@@ -46,6 +47,11 @@ app.get('/checkout/mock-payment', (req, res) => {
 app.post('/checkout/mock-payment', (req, res) => {
     const sessionId = req.body?.session_id as string | undefined;
     const session = sessionId ? dataStore.getSession(sessionId) : undefined;
+    const successUrl =
+        session?.success_url?.replace(
+            '{CHECKOUT_SESSION_ID}',
+            sessionId ?? '',
+        ) ?? '/';
 
     if (!session) {
         res.status(404).send(renderNotFound(sessionId));
@@ -53,7 +59,7 @@ app.post('/checkout/mock-payment', (req, res) => {
     }
 
     if (session.status !== 'open') {
-        res.redirect(session.success_url ?? '/');
+        res.redirect(successUrl);
         return;
     }
 
@@ -69,7 +75,7 @@ app.post('/checkout/mock-payment', (req, res) => {
         console.error('[webhook] Dispatch error:', (err as Error).message);
     });
 
-    res.redirect(session.success_url ?? '/');
+    res.redirect(successUrl);
 });
 
 // ── Stripe API routes (auth required) ────────────────────────────────────────
