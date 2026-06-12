@@ -33,7 +33,7 @@ async function postEvent(
     url: string,
     event: ReturnType<typeof makeEvent>,
 ): Promise<void> {
-    const body = JSON.stringify({ timestamp: new Date().toISOString(), event });
+    const body = JSON.stringify(event);
     const secret = process.env.WEBHOOK_SECRET ?? 'mock_signature';
     const signature = StripeClient.webhooks.generateTestHeaderString({
         payload: body,
@@ -159,6 +159,10 @@ export async function dispatchCheckoutWebhooks(
                     next_action: null,
                     on_behalf_of: null,
                     payment_method: paymentMethodId,
+                    payment_details: {
+                        customer_reference: null,
+                        order_reference: session.id,
+                    },
                     payment_method_types: session.payment_method_types ?? [
                         'card',
                     ],
