@@ -7,6 +7,7 @@ import {
     generatePaymentIntentId,
 } from '../utils/id';
 import { paginate, ListQueryParams } from '../utils/pagination';
+import { parseExpand, expandPrice } from '../utils/expand';
 
 type StripeCheckoutSession = Stripe.Checkout.Session;
 type StripeLineItem = Stripe.LineItem;
@@ -166,9 +167,26 @@ router.get('/:id/line_items', (req: Request, res: Response) => {
         return;
     }
     const items = dataStore.getSessionLineItems(req.params.id);
+
+    // Parse expand parameter and apply expansion if needed
+    const expand = parseExpand({ ...req.query, ...req.body });
+    const shouldExpandPrice = expand.some(
+        (e) =>
+            e === 'data.price.product' ||
+            e === 'price.product' ||
+            e === 'data.product',
+    );
+
+    const expandedItems = shouldExpandPrice
+        ? items.map((item) => ({
+              ...item,
+              price: item.price ? expandPrice(item.price, expand) : item.price,
+          }))
+        : items;
+
     res.json(
         paginate(
-            items,
+            expandedItems,
             req.query as ListQueryParams,
             `/v1/checkout/sessions/${req.params.id}/line_items`,
         ),

@@ -56,13 +56,18 @@ export function expandProduct(
 /**
  * Expand `product` on a price when the caller requests it.
  * Accepts both the single-object form (`product`) and the list
- * data-item form (`data.product`).
+ * data-item forms (`data.product`, `data.price.product`).
  */
 export function expandPrice(
     price: Stripe.Price,
     expand: string[],
 ): Stripe.Price {
-    const wants = expand.some((e) => e === 'product' || e === 'data.product');
+    const wants = expand.some(
+        (e) =>
+            e === 'product' ||
+            e === 'data.product' ||
+            e === 'data.price.product',
+    );
     if (!wants) return price;
     if (!price.product || typeof price.product !== 'string') return price;
     const product = dataStore.getProduct(price.product);
