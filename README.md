@@ -11,6 +11,14 @@ A local mock Stripe API server that emulates the Products, Prices, and Checkout 
 - **Docker Compose** — Single command to run, volume-mounted data directory
 - **Stripe-compatible responses** — Matches the Stripe API response envelope (`object`, `data`, `has_more`, `url`)
 
+## Docker Hub
+
+The latest version of this app is available in Docker Hub as a downloadable image: https://hub.docker.com/repository/docker/marshallgraphics/sbc-cmo-stripe-mock-api
+
+```
+marshallgraphics/sbc-cmo-stripe-mock-api:latest
+```
+
 ---
 
 ## Quick Start
