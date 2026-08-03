@@ -13,7 +13,7 @@ A local mock Stripe API server that emulates the Products, Prices, and Checkout 
 
 ## Docker Hub
 
-The latest version of this app is available in Docker Hub as a downloadable image: https://hub.docker.com/repository/docker/marshallgraphics/sbc-cmo-stripe-mock-api
+The latest version of this app is available in Docker Hub as a downloadable image: https://hub.docker.com/r/marshallgraphics/sbc-cmo-stripe-mock-api
 
 ```
 marshallgraphics/sbc-cmo-stripe-mock-api:latest
